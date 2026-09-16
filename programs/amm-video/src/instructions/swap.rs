@@ -57,22 +57,27 @@ pub struct Swap<'info> {
 impl<'info> Swap<'info> {
     pub fn swap(&mut self, is_x: bool, amount: u64, min: u64) -> Result<()> {
         require!(amount > 0, AmmError::InvalidAmount);
+
+        // Normalize both swap directions so the curve always treats the deposited
+        // token as X. The dependency's Y branch does not apply its fee-adjusted
+        // input consistently, while its X branch does.
+        let (reserve_in, reserve_out) = if is_x {
+            (self.vault_x.amount, self.vault_y.amount)
+        } else {
+            (self.vault_y.amount, self.vault_x.amount)
+        };
+
         let mut curve = ConstantProduct::init(
-            self.vault_x.amount,
-            self.vault_y.amount,
+            reserve_in,
+            reserve_out,
             self.mint_lp.supply,
             self.config.fee,
             Some(6),
         )
         .unwrap();
 
-        let p = match is_x {
-            true => LiquidityPair::X,
-            false => LiquidityPair::Y,
-        };
-
         let swap_result: constant_product_curve::SwapResult = curve
-            .swap(p, amount, min)
+            .swap(LiquidityPair::X, amount, min)
             .map_err(|_| AmmError::SlippageExceeded)?;
 
         self.deposit_tokens(is_x, swap_result.deposit)?;

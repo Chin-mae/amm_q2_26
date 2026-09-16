@@ -14,6 +14,7 @@ use {
 pub fn create_swap_ix(
     mut _svm: &mut LiteSVM,
     payer: &Keypair,
+    is_x: bool,
     mint_x: Pubkey,
     mint_y: Pubkey,
     mint_lp: Pubkey,
@@ -28,7 +29,7 @@ pub fn create_swap_ix(
     Instruction::new_with_bytes(
         amm_video::id(),
         &amm_video::instruction::Swap {
-            is_x: true,
+            is_x,
             amount_in: 10_000_000,
             min_amount_out: 5_000_000,
         }

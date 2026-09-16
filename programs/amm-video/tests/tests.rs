@@ -1,7 +1,7 @@
 use {
     anchor_spl::associated_token,
     litesvm::LiteSVM,
-    litesvm_token::CreateMint,
+    litesvm_token::{get_spl_account, spl_token::state::Account as SplTokenAccount, CreateMint},
     solana_keypair::Keypair,
     solana_message::{Instruction, Message, VersionedMessage},
     solana_pubkey::Pubkey,
@@ -131,9 +131,23 @@ pub fn test_swap() {
     );
 
     let swap_ix = create_swap_ix(
-        &mut svm, &payer, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
+        &mut svm, &payer, false, mint_x, mint_y, mint_lp, config, vault_x, vault_y,
     );
 
     let res = send(&mut svm, &[init_ix, deposit_ix, swap_ix], &payer, &[&payer]);
     assert!(res.is_ok());
+
+    let vault_x_account: SplTokenAccount = get_spl_account(&svm, &vault_x).unwrap();
+    let vault_y_account: SplTokenAccount = get_spl_account(&svm, &vault_y).unwrap();
+
+    let initial_reserve = 200_000_000u64;
+    let amount_in = 10_000_000u64;
+    let amount_after_fee = amount_in * (10_000 - 30) / 10_000;
+    let expected_vault_x = ((initial_reserve as u128 * initial_reserve as u128)
+        / (initial_reserve + amount_after_fee) as u128) as u64;
+
+    // The full Y input enters the pool, but only the fee-adjusted amount determines
+    // how much X leaves. The difference stays in the pool for LP holders.
+    assert_eq!(vault_y_account.amount, initial_reserve + amount_in);
+    assert_eq!(vault_x_account.amount, expected_vault_x);
 }
